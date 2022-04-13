@@ -16,7 +16,11 @@ package pkg
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"reflect"
 	"strconv"
@@ -32,10 +36,14 @@ type X509KeyLoader func(certFile string, keyFile string) (tls.Certificate, error
 
 type TlsConfigurationOptions struct {
 	SkipCertVerify bool
+	CaFile         string
 	CertFile       string
 	KeyFile        string
+	CaPEMBlock     string
 	KeyPEMBlock    string
 	CertPEMBlock   string
+
+
 }
 
 func CreateDefaultTlsConfigurationOptions() TlsConfigurationOptions {
@@ -45,6 +53,8 @@ func CreateDefaultTlsConfigurationOptions() TlsConfigurationOptions {
 		KeyFile:        "",
 		KeyPEMBlock:    "",
 		CertPEMBlock:   "",
+		CaFile: "",
+		CaPEMBlock: "",
 	}
 }
 
@@ -56,12 +66,6 @@ func GenerateTLSForClientClientOptions(
 	certCreator X509KeyPairCreator,
 	certLoader X509KeyLoader) (*tls.Config, error) {
 
-	// Nothing to do if the CertFile, KeyFile, CertPEMBlock, and KeyPEMBlock properties are not provided.
-	if len(tlsConfigurationOptions.CertFile) <= 0 && len(tlsConfigurationOptions.KeyFile) <= 0 &&
-		len(tlsConfigurationOptions.CertPEMBlock) <= 0 && len(tlsConfigurationOptions.KeyPEMBlock) <= 0 {
-		return nil, nil
-	}
-
 	parsedBrokerURL, err := url.Parse(brokerURL)
 	if err != nil {
 		return nil, NewBrokerURLErr(fmt.Sprintf("Failed to parse broker: %v", err))
@@ -72,15 +76,43 @@ func GenerateTLSForClientClientOptions(
 			continue
 		}
 
-		cert, err := generateCertificate(tlsConfigurationOptions, certCreator, certLoader)
-		if err != nil {
-			return nil, err
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: tlsConfigurationOptions.SkipCertVerify, // nolint: gosec
 		}
 
-		tlsConfig := &tls.Config{
-			ClientCAs:          nil,
-			InsecureSkipVerify: tlsConfigurationOptions.SkipCertVerify, // nolint: gosec
-			Certificates:       []tls.Certificate{cert},
+		if (len(tlsConfigurationOptions.CertFile) > 0 && len(tlsConfigurationOptions.KeyFile) > 0) ||
+			(len(tlsConfigurationOptions.CertPEMBlock) > 0 && len(tlsConfigurationOptions.KeyPEMBlock) > 0) {
+			cert, err := generateCertificate(tlsConfigurationOptions, certCreator, certLoader)
+			if err != nil {
+				return nil, err
+			}
+
+			tlsConfig.Certificates = append(tlsConfig.Certificates, cert)
+		}
+
+		var caData []byte
+		if len(tlsConfigurationOptions.CaFile) > 0 {
+			caData, err = ioutil.ReadFile(tlsConfigurationOptions.CaFile)
+			if err != nil {
+				return nil, errors.New("failed to load CA file")
+			}
+
+		}
+		if len(tlsConfigurationOptions.CaPEMBlock) > 0 {
+			caData = []byte(tlsConfigurationOptions.CaPEMBlock)
+		}
+		if caData != nil {
+			caCertPool := x509.NewCertPool()
+			caPEMBlock, _ := pem.Decode(caData)
+			if caPEMBlock == nil {
+				return nil, errors.New("failed to find PEM formatted block in the CA file")
+			}
+			caCert, err := x509.ParseCertificate(caPEMBlock.Bytes)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse CA PEM block, error: %s", err.Error())
+			}
+			caCertPool.AddCert(caCert)
+			tlsConfig.RootCAs = caCertPool
 		}
 
 		return tlsConfig, nil

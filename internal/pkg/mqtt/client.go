@@ -288,6 +288,7 @@ func createClientOptions(
 		certCreator,
 		certLoader)
 
+
 	if err != nil {
 		return clientOptions, err
 	}
