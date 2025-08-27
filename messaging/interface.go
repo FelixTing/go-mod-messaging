@@ -17,6 +17,7 @@
 package messaging
 
 import (
+	"github.com/edgexfoundry/go-mod-messaging/v4/pkg/messaging"
 	"time"
 
 	"github.com/edgexfoundry/go-mod-messaging/v4/pkg/types"
@@ -63,4 +64,12 @@ type MessageClient interface {
 	// Disconnect is to close all connections on the message bus
 	// and TopicChannel will also be closed
 	Disconnect() error
+}
+
+// MessageClientExt is an extended interface of MessageClient that includes CriticalOperationSignaler
+type MessageClientExt interface {
+	MessageClient
+
+	// CriticalOperationSignaler returns the critical operation signaler interface
+	CriticalOperationSignaler() messaging.CriticalOperationSignaler
 }

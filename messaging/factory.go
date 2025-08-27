@@ -42,7 +42,7 @@ const (
 
 // NewMessageClient is a factory function to instantiate different message client depending on
 // the "Type" from the configuration
-func NewMessageClient(msgConfig types.MessageBusConfig) (MessageClient, error) {
+func NewMessageClient(msgConfig types.MessageBusConfig) (MessageClientExt, error) {
 
 	if msgConfig.Broker.IsHostInfoEmpty() {
 		return nil, fmt.Errorf("unable to create messageClient: Broker info not set")

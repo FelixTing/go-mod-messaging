@@ -26,6 +26,7 @@ import (
 
 	"github.com/edgexfoundry/go-mod-messaging/v4/internal/pkg"
 	"github.com/edgexfoundry/go-mod-messaging/v4/messaging/envelope"
+	"github.com/edgexfoundry/go-mod-messaging/v4/pkg/messaging"
 	"github.com/edgexfoundry/go-mod-messaging/v4/pkg/types"
 
 	pahoMqtt "github.com/eclipse/paho.mqtt.golang"
@@ -53,6 +54,7 @@ type Client struct {
 	unmarshaller          MessageUnmarshaller
 	existingSubscriptions map[string]existingSubscription
 	subscriptionMutex     *sync.Mutex
+	criticalSignaler      messaging.CriticalOperationSignaler
 }
 
 type existingSubscription struct {
@@ -71,6 +73,7 @@ func NewMQTTClient(config types.MessageBusConfig) (*Client, error) {
 		unmarshaller:          envelope.Unmarshal,
 		existingSubscriptions: map[string]existingSubscription{},
 		subscriptionMutex:     new(sync.Mutex),
+		criticalSignaler:      messaging.NewCriticalOperationSignaler(),
 	}
 
 	return client, nil
@@ -90,6 +93,7 @@ func NewMQTTClientWithCreator(
 		unmarshaller:          unmarshaller,
 		existingSubscriptions: make(map[string]existingSubscription),
 		subscriptionMutex:     new(sync.Mutex),
+		criticalSignaler:      messaging.NewCriticalOperationSignaler(),
 	}
 
 	return client, nil
@@ -406,4 +410,9 @@ func (mc *Client) subscribe(topics []types.TopicChannel, messageErrors chan erro
 	}
 
 	return nil
+}
+
+// CriticalOperationSignaler returns the critical operation signaler
+func (mc *Client) CriticalOperationSignaler() messaging.CriticalOperationSignaler {
+	return mc.criticalSignaler
 }
